@@ -1,5 +1,7 @@
 # 龙娘清晰度、动画与固定签名
 
+> 最新结果（2026-10-23）：[运行40004149579，第2次尝试](https://github.com/hhjjfgh60/deskpet/actions/runs/40004149579) 已全部成功。Secret加载、固定证书校验、测试/lint、固定签名APK、原图逐字节比较及上传全部通过。原始PNG与旧APK完全相同。正式安装包：[gpt-dragon-android-apk](https://github.com/hhjjfgh60/deskpet/actions/runs/40004149579/artifacts/12523234232)。新旧证书不同，第一次仍需按下文先备份再迁移；此后使用同一Secret签名覆盖更新。下文的首次缺Secret记录保留为历史。
+
 ## 核查结论
 
 源图为 `1536×2288` RGBA PNG，8列11行，每格 `192×208`。57个动作帧、16个方向姿态以及透明背景保持原样。上一版成功构建的实际素材校验已通过。

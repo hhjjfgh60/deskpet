@@ -33,7 +33,7 @@ import com.deskpet.data.model.PetType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-val SCALE_OPTIONS = listOf(0.5f, 1f, 1.5f, 2f, 2.5f, 3f)
+val SCALE_OPTIONS = listOf(0.5f, 0.75f, 1f, 1.5f, 2f, 2.5f, 3f)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -114,7 +114,7 @@ fun PetListScreen(
                             FilterChip(
                                 selected = curScale == s,
                                 onClick = { onScaleChange(s) },
-                                label = { Text("${(s * 100).toInt()}%", style = MaterialTheme.typography.labelSmall) },
+                                label = { Text(if (s == 1f) "100% 原生" else "${(s * 100).toInt()}%", style = MaterialTheme.typography.labelSmall) },
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -122,6 +122,7 @@ fun PetListScreen(
                     }
                 }
             }
+            PetResolutionInfo(petList.find { it.id == activePetId }, curScale, isOverlayRunning)
             Spacer(Modifier.height(8.dp))
         }
 
@@ -231,3 +232,35 @@ private fun loadOrCreateThumb(pet: PetInfo): Bitmap? {
     } catch (e: Exception) { Log.w("PetListScreen", "thumbnail failed", e); null }
 }
 
+
+@Composable
+private fun PetResolutionInfo(pet: PetInfo?, scale: Float, overlayRunning: Boolean) {
+    var native by remember(pet?.spritesheetPath) { mutableStateOf<androidx.compose.ui.unit.IntSize?>(null) }
+    val measured by com.deskpet.overlay.OverlayDiagnostics.pixels.collectAsState()
+    LaunchedEffect(pet?.spritesheetPath, pet?.petJsonPath) {
+        native = withContext(Dispatchers.IO) {
+            if (pet?.type != PetType.CODEX_PET) return@withContext null
+            val parser = com.deskpet.engine.SpritesheetParser()
+            val config = pet.petJsonPath?.let { parser.parse(it) } ?: return@withContext null
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true; inScaled = false }
+            BitmapFactory.decodeFile(pet.spritesheetPath, bounds)
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) null
+            else androidx.compose.ui.unit.IntSize(bounds.outWidth / config.columns, bounds.outHeight / config.rows)
+        }
+    }
+    native?.let { source ->
+        val actual = measured?.takeIf { overlayRunning && it.source == source }
+        val expected = androidx.compose.ui.unit.IntSize((source.width * scale).toInt().coerceAtLeast(32),
+            (source.height * scale).toInt().coerceAtLeast(32))
+        val displayed = actual?.displayed ?: expected
+        val prefix = if (actual != null) "悬浮窗实测" else "预计显示"
+        val enlarged = displayed.width > source.width || displayed.height > source.height
+        Text("原始每帧 ${source.width}×${source.height} px · $prefix ${displayed.width}×${displayed.height} px",
+            style = MaterialTheme.typography.bodySmall)
+        if (actual != null) Text("屏幕密度 ${actual.density} px/dp · 位置与大小设置继续保留",
+            style = MaterialTheme.typography.bodySmall)
+        Text(if (enlarged) "当前超过原生分辨率；放大不增加细节。建议点「100% 原生」或75%。"
+             else "100%为逐像素原图；75%适合稍小显示。素材细节上限取决于原始每帧分辨率。",
+            style = MaterialTheme.typography.bodySmall)
+    }
+}

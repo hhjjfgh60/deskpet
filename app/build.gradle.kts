@@ -15,12 +15,27 @@ android {
         applicationId = "com.deskpet"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1-clarity"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (providers.environmentVariable("DESKPET_SIGNING_STORE_FILE").isPresent) {
+            create("fixedPersonal") {
+                storeFile = file(providers.environmentVariable("DESKPET_SIGNING_STORE_FILE").get())
+                storePassword = providers.environmentVariable("DESKPET_SIGNING_STORE_PASSWORD").get()
+                keyAlias = providers.environmentVariable("DESKPET_SIGNING_KEY_ALIAS").get()
+                keyPassword = providers.environmentVariable("DESKPET_SIGNING_KEY_PASSWORD").get()
+                storeType = "PKCS12"
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfigs.findByName("fixedPersonal")?.let { signingConfig = it }
+        }
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

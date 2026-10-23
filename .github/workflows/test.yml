@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: android-${{ github.workflow }}-${{ github.ref }}
@@ -55,9 +56,29 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
-      - name: Verify APK debug signature
-        run: $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose app/build/outputs/apk/debug/app-debug.apk
+      - name: Configure fixed signing from GitHub Secret
+        if: github.event_name != 'pull_request'
+        env:
+          DESKPET_SIGNING_BUNDLE: ${{ secrets.DESKPET_SIGNING_BUNDLE }}
+        run: python scripts/configure_signing.py
+      - name: Rebuild APK with the verified fixed signing key
+        if: github.event_name != 'pull_request'
+        run: ./gradlew --no-daemon assembleDebug
+      - name: Verify APK signature
+        run: $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose --print-certs app/build/outputs/apk/debug/app-debug.apk
+      - name: Download the previously installed debug APK for comparison
+        continue-on-error: true # The old artifact can expire; fixed certificate checks remain mandatory.
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/hhjjfgh60/deskpet/actions/artifacts/12521013140/zip > "$RUNNER_TEMP/previous-apk.zip"
+          unzip -p "$RUNNER_TEMP/previous-apk.zip" app-debug.apk > "$RUNNER_TEMP/previous-app-debug.apk"
+      - name: Verify native pixels and fixed signer; report old-version migration
+        if: github.event_name != 'pull_request'
+        run: python scripts/verify_apk_clarity.py
       - name: Upload installable APK
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: gpt-dragon-android-apk
@@ -72,4 +93,8 @@ jobs:
           path: |
             app/build/reports/tests/
             app/build/reports/lint-results-debug.html
+            app/build/reports/clarity/
           if-no-files-found: ignore
+      - name: Remove temporary signing key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/deskpet-signing"

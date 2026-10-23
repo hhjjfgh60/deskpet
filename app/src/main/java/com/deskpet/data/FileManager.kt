@@ -129,8 +129,12 @@ class FileManager(private val context: Context) {
                     val petList: List<PetInfo> = json.decodeFromString(jsonFile.readText())
                     val petsDir = File(context.filesDir, "pets").also { it.mkdirs() }
                     petList.forEach { pet ->
-                        // 去重：已存在的 ID 跳过
-                        if (petRepository.getPet(pet.id) != null) return@forEach
+                        // Built-ins are already installed before restore; restore their saved layout too.
+                        if (petRepository.getPet(pet.id) != null) {
+                            petRepository.savePosition(pet.id, pet.positionX, pet.positionY, pet.scale)
+                            if (pet.isActive) petRepository.setActivePet(pet.id)
+                            return@forEach
+                        }
                         val destDir = File(petsDir, pet.id).also { it.mkdirs() }
                         val srcDir = File(tmpDir, "pets/${pet.id}")
                         if (srcDir.exists()) {
@@ -141,6 +145,7 @@ class FileManager(private val context: Context) {
                             spritesheetPath = findSpritesheet(destDir)?.absolutePath ?: pet.spritesheetPath
                         )
                         petRepository.addPetDirect(fixedPet)
+                        if (pet.isActive) petRepository.setActivePet(pet.id)
                     }
                 } else {
                     val petJsonFile = File(tmpDir, "pet.json")
@@ -239,3 +244,4 @@ class FileManager(private val context: Context) {
             || header.contentEquals(byteArrayOf(0x47, 0x49, 0x46, 0x38, 0x39, 0x61))
     }
 }
+

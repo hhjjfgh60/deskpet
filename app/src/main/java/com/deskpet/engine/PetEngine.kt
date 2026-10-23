@@ -50,6 +50,10 @@ class PetEngine(
         }
     }
 
+    fun prepare(loader: PetLoader) {
+        if (loader is PetLoader.CodexPet) spritesheetParser.preload(loader.config, loader.spritesheetPath)
+    }
+
     fun getCurrentFrame(
         loader: PetLoader,
         state: PetAnimationState,

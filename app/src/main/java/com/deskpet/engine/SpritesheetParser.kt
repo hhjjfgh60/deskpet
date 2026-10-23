@@ -23,6 +23,7 @@ class SpritesheetParser {
     }
 
     private val json = Json { ignoreUnknownKeys = true }
+    private val frameCache = FrameCache<String, Bitmap>(16 * 1024 * 1024) { it.byteCount }
     @Volatile private var cachedDecoder: BitmapRegionDecoder? = null
     @Volatile private var cachedFullBitmap: Bitmap? = null
     @Volatile private var cachedPath: String? = null
@@ -47,6 +48,7 @@ class SpritesheetParser {
             cachedFullBitmap?.recycle()
             cachedDecoder = null
             cachedFullBitmap = null
+            frameCache.clear()
             cachedPath = spritesheetPath
         }
     }
@@ -65,12 +67,21 @@ class SpritesheetParser {
         ensureCache(spritesheetPath)
         if (cachedFullBitmap == null || cachedFullBitmap?.isRecycled == true) {
             cachedFullBitmap = try {
-                BitmapFactory.decodeFile(spritesheetPath)
+                BitmapFactory.decodeFile(spritesheetPath, fullResolutionOptions())?.apply { density = Bitmap.DENSITY_NONE }
             } catch (e: Exception) { Log.w(TAG, "Failed to decode full bitmap", e); null }
         }
         return cachedFullBitmap
     }
 
+    private fun fullResolutionOptions() = BitmapFactory.Options().apply {
+        inSampleSize = 1
+        inScaled = false
+        inDensity = 0
+        inTargetDensity = 0
+        inPreferredConfig = Bitmap.Config.ARGB_8888
+    }
+
+    @Synchronized
     fun extractFrame(
         config: CodexPetConfig,
         spritesheetPath: String,
@@ -80,16 +91,20 @@ class SpritesheetParser {
         val stateConfig = getStateConfig(config, state)
         val frames = stateConfig.frames
         if (frames <= 0) return null
-        val col = frameIndex % frames
+        val col = Math.floorMod(frameIndex, frames)
+        ensureCache(spritesheetPath)
+        val key = "${config.columns}:${config.rows}:${stateConfig.row}:$col"
+        frameCache[key]?.let { return it }
 
         // API 28+: BitmapRegionDecoder
         val decoder = getDecoder(spritesheetPath)
         if (decoder != null) {
             val rect = calculateCellRect(stateConfig.row, col, decoder.width, decoder.height, config.columns, config.rows)
             return try {
-                decoder.decodeRegion(rect, BitmapFactory.Options().apply {
-                    inPreferredConfig = Bitmap.Config.ARGB_8888
-                })
+                decoder.decodeRegion(rect, fullResolutionOptions())?.apply {
+                    density = Bitmap.DENSITY_NONE
+                    frameCache.put(key, this)
+                }
             } catch (e: Exception) { Log.w(TAG, "Failed to decode region", e); null }
         }
 
@@ -97,7 +112,10 @@ class SpritesheetParser {
         val full = getFullBitmap(spritesheetPath) ?: return null
         val rect = calculateCellRect(stateConfig.row, col, full.width, full.height, config.columns, config.rows)
         return try {
-            Bitmap.createBitmap(full, rect.left, rect.top, rect.width(), rect.height())
+            Bitmap.createBitmap(full, rect.left, rect.top, rect.width(), rect.height()).apply {
+                density = Bitmap.DENSITY_NONE
+                frameCache.put(key, this)
+            }
         } catch (e: Exception) { Log.w(TAG, "Failed to createBitmap from full", e); null }
     }
 
@@ -113,7 +131,40 @@ class SpritesheetParser {
     fun getFrameDurationMs(config: CodexPetConfig, state: PetAnimationState, frameIndex: Int): Long =
         getStateConfig(config, state).durationMs(frameIndex, if (state == PetAnimationState.IDLE) 500L else 200L)
 
+    /** Run on a worker: decode the original atlas once, then cache unscaled cells. */
+    @Synchronized
+    fun preload(config: CodexPetConfig, spritesheetPath: String) {
+        ensureCache(spritesheetPath)
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true; inScaled = false }
+        BitmapFactory.decodeFile(spritesheetPath, bounds)
+        val frameBytes = (bounds.outWidth.toLong() / config.columns) * (bounds.outHeight / config.rows) * 4
+        val states = PetAnimationState.entries
+        val total = states.sumOf { getFrameCount(config, it).toLong() } * frameBytes
+        // Avoid large temporary allocations for imported HD atlases; lazily cache those instead.
+        if (total <= 0 || total > 16L * 1024 * 1024) return
+        val atlas = BitmapFactory.decodeFile(spritesheetPath, fullResolutionOptions()) ?: return
+        try {
+            atlas.density = Bitmap.DENSITY_NONE
+            for (state in states) {
+                val animation = getStateConfig(config, state)
+                for (column in 0 until animation.frames) {
+                    val key = "${config.columns}:${config.rows}:${animation.row}:$column"
+                    if (frameCache[key] != null) continue
+                    val cell = calculateCellRect(animation.row, column, atlas.width, atlas.height, config.columns, config.rows)
+                    val frame = Bitmap.createBitmap(atlas, cell.left, cell.top, cell.width(), cell.height())
+                    frame.density = Bitmap.DENSITY_NONE
+                    frameCache.put(key, frame)
+                }
+            }
+        } finally {
+            // A one-cell imported atlas could return the same object from createBitmap.
+            if (config.columns * config.rows > 1) atlas.recycle()
+        }
+    }
+
+    @Synchronized
     fun release() {
+        frameCache.clear()
         cachedDecoder?.recycle()
         cachedDecoder = null
         cachedFullBitmap?.recycle()

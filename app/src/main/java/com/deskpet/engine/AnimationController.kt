@@ -33,48 +33,54 @@ class AnimationController(
     private var loader: PetEngine.PetLoader? = null
     private var fj: Job? = null
     private var s = 1f
+    private var nativeWidth = 192
+    private var nativeHeight = 208
+    private var stateStartedNs = System.nanoTime()
 
-    fun load(p: PetInfo): Boolean {
-        loader = petEngine.createLoader(p) ?: return false
-        val (w, h) = petEngine.getPetSize(loader!!)
+    suspend fun load(p: PetInfo): Boolean {
+        val prepared = withContext(Dispatchers.IO) {
+            petEngine.createLoader(p)?.also { petEngine.prepare(it) }
+        } ?: return false
+        loader = prepared
+        val (w, h) = withContext(Dispatchers.IO) { petEngine.getPetSize(prepared) }
+        nativeWidth = w; nativeHeight = h
         _w.value = w; _h.value = h; reset(); return true
     }
 
-    fun reload(p: PetInfo): Boolean { stop(); return load(p) }
+    suspend fun reload(p: PetInfo): Boolean { stop(); return load(p) }
 
     fun start() {
         fj?.cancel()
+        stateStartedNs = System.nanoTime()
         fj = scope.launch(Dispatchers.Main) {
             while (isActive) {
                 val l = loader ?: break
                 val revision = stateRevision
                 val state = _state.value
-                val index = fi
                 val started = System.nanoTime()
-                val duration = petEngine.getFrameDurationMs(l, state, index)
+                val durations = (0 until petEngine.getFrameCount(l, state)).map {
+                    petEngine.getFrameDurationMs(l, state, it)
+                }
+                val phase = framePhase(durations, (started - stateStartedNs) / 1_000_000)
+                if (isCodexPet() && state != PetAnimationState.IDLE && phase.completedLoops >= LOOP_COUNT_BEFORE_IDLE) {
+                    switchState(PetAnimationState.IDLE)
+                    continue
+                }
                 val bitmap = withContext(Dispatchers.IO) {
-                    petEngine.getCurrentFrame(l, state, index)
+                    petEngine.getCurrentFrame(l, state, phase.frame)
                 }
                 if (revision != stateRevision) continue
                 if (bitmap != null) _frame.value = bitmap
-                delay((duration - (System.nanoTime() - started) / 1_000_000).coerceAtLeast(16L))
-                if (revision != stateRevision) continue
-                fi++
-                val count = petEngine.getFrameCount(l, state)
-                if (fi >= count && count > 0) {
-                    fi = 0
-                    if (isCodexPet() && state != PetAnimationState.IDLE && ++pc >= LOOP_COUNT_BEFORE_IDLE) {
-                        switchState(PetAnimationState.IDLE)
-                    }
-                }
+                val workMs = (System.nanoTime() - started) / 1_000_000
+                delay((phase.remainingMs - workMs).coerceAtLeast(1L))
             }
         }
     }
 
     fun stop() { fj?.cancel(); fj = null }
-    override fun switchState(st: PetAnimationState) { stateRevision++; _state.value = st; fi = 0; pc = 0 }
+    override fun switchState(st: PetAnimationState) { stateRevision++; stateStartedNs = System.nanoTime(); _state.value = st; fi = 0; pc = 0 }
     fun reset() { switchState(PetAnimationState.IDLE) }
-    fun setScale(v: Float) { s = v.coerceIn(MIN_SCALE, MAX_SCALE); loader?.let { val (w, h) = petEngine.getPetSize(it); _w.value = (w * s).toInt().coerceAtLeast(MIN_PET_SIZE_PX); _h.value = (h * s).toInt().coerceAtLeast(MIN_PET_SIZE_PX) } }
+    fun setScale(v: Float) { s = v.coerceIn(MIN_SCALE, MAX_SCALE); loader?.let { _w.value = (nativeWidth * s).toInt().coerceAtLeast(MIN_PET_SIZE_PX); _h.value = (nativeHeight * s).toInt().coerceAtLeast(MIN_PET_SIZE_PX) } }
     fun isCodexPet() = loader is PetEngine.PetLoader.CodexPet
 }
 

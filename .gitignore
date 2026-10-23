@@ -10,3 +10,11 @@ local.properties
 *.keystore
 /secrets/
 /.sisyphus/
+
+
+# Local signing material and Python bytecode must never enter the public repository.
+*.p12
+__pycache__/
+*.py[cod]
+/deskpet-signing-secret.json
+/signing-private/

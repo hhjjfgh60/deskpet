@@ -69,3 +69,9 @@ GitHub连接器不提供Secrets写入接口，也没有已登录GitHub的可用�
 5. 点“100% 原生”或75%查看清晰效果；这一步是你主动选择新大小，不会在升级时悄悄覆盖旧设置。
 
 一次迁移后，后续固定签名版本直接覆盖安装，不需重复卸载。
+
+## 实际云端验证记录
+
+[运行40004149579](https://github.com/hhjjfgh60/deskpet/actions/runs/40004149579) 已通过素材下载/真实像素校验、SDK安装、`testDebugUnitTest lintDebug assembleDebug`。首次构建日志为 `BUILD SUCCESSFUL in 1m 21s`，包括新增的帧时间轴与缓存回归测试。
+
+正式签名步骤明确失败于 `Missing GitHub Actions Secret DESKPET_SIGNING_BUNDLE`，因此固定签名重建、证书审计及安装包上传均未执行。**这次不是可安装正式新版的成功交付，不能据此卸载旧版。**保存上述Secret后重新运行工作流，等全绿并出现 `gpt-dragon-android-apk` 再备份/迁移。没有运行手机真机性能测试；帧缓存能消除重复解码开销，但具体手机表现仍需安装后验证。

@@ -3,6 +3,7 @@ package com.deskpet.data
 import android.content.Context
 import android.util.Log
 import com.deskpet.data.model.CodexPetConfig
+import com.deskpet.data.model.validateLayout
 import com.deskpet.data.model.PetInfo
 import com.deskpet.data.model.PetType
 import kotlinx.coroutines.Dispatchers
@@ -19,7 +20,7 @@ object SamplePetLoader {
 
     suspend fun loadSamplePets(context: Context, petRepository: PetRepository) {
         val allPets = petRepository.getAllPets().first()
-        if (allPets.isNotEmpty()) return  // 已经加载过，跳过
+        // Add newly bundled pets on upgrade without resetting an existing selection.
 
         withContext(Dispatchers.IO) {
             try {
@@ -27,7 +28,8 @@ object SamplePetLoader {
                 val assetList = context.assets.list(assetsPetsDir) ?: return@withContext
                 val internalPetsDir = File(context.filesDir, "pets").also { it.mkdirs() }
 
-                for (petName in assetList) {
+                for (petName in assetList.sortedBy { if (it == "gpt-dragon") 0 else 1 }) {
+                    if (allPets.any { it.id == petName }) continue
                     try {
                         val srcDir = "$assetsPetsDir/$petName"
                         val destDir = File(internalPetsDir, petName)
@@ -35,6 +37,7 @@ object SamplePetLoader {
                         val petJsonContent = context.assets.open("$srcDir/pet.json")
                             .bufferedReader().readText()
                         val config = json.decodeFromString<CodexPetConfig>(petJsonContent)
+                        config.validateLayout()
 
                         destDir.mkdirs()
                         val petFiles = context.assets.list(srcDir) ?: continue
@@ -51,12 +54,21 @@ object SamplePetLoader {
                             ?: File(destDir, "spritesheet.png").takeIf { it.exists() }
                             ?: continue
 
+                        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        android.graphics.BitmapFactory.decodeFile(spritesheetFile.absolutePath, bounds)
+                        if (bounds.outWidth <= 0 || bounds.outHeight <= 0 ||
+                            bounds.outWidth % config.columns != 0 || bounds.outHeight % config.rows != 0) {
+                            Log.e(TAG, "Invalid bundled atlas: $petName")
+                            continue
+                        }
+
                         val petInfo = PetInfo(
                             id = petName,
                             type = PetType.CODEX_PET,
                             displayName = config.displayName,
                             petJsonPath = File(destDir, "pet.json").absolutePath,
-                            spritesheetPath = spritesheetFile.absolutePath
+                            spritesheetPath = spritesheetFile.absolutePath,
+                            sourceId = config.id
                         )
                         petRepository.addPetDirect(petInfo)
                     } catch (e: Exception) {
@@ -64,11 +76,15 @@ object SamplePetLoader {
                     }
                 }
 
-                val allPets = petRepository.getAllPets().first()
-                allPets.firstOrNull()?.let { petRepository.setActivePet(it.id) }
+                val loaded = petRepository.getAllPets().first()
+                if (petRepository.getActivePetId().first().isNullOrEmpty()) {
+                    (loaded.find { it.id == "gpt-dragon" } ?: loaded.firstOrNull())
+                        ?.let { petRepository.setActivePet(it.id) }
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load sample pets", e)
             }
         }
     }
 }
+

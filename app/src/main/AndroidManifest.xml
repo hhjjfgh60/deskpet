@@ -5,11 +5,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:name=".DeskPetApp"
         android:allowBackup="false"
         android:hardwareAccelerated="true"
-        android:label="桌面宠物"
+        android:label="GPT 龙娘桌宠"
         android:supportsRtl="true"
         android:theme="@style/Theme.DeskPet"
         android:icon="@mipmap/ic_launcher">
@@ -28,7 +30,10 @@
             android:name=".overlay.PetOverlayService"
             android:exported="false"
             android:foregroundServiceType="specialUse"
-            android:stopWithTask="true" />
+            android:stopWithTask="false">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-started interactive floating desktop pet displayed over other apps" />
+        </service>
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -41,3 +46,4 @@
         </provider>
     </application>
 </manifest>
+

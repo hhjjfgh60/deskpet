@@ -3,6 +3,8 @@ package com.deskpet.data
 import com.deskpet.data.model.PetInfo
 import com.deskpet.data.model.PetType
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -192,4 +194,24 @@ class PetRepositoryTest {
         assertEquals("First", pets[0].displayName)
         assertEquals("Second", pets[1].displayName)
     }
+    @Test
+    fun `concurrent position and scale updates do not overwrite each other`() = runTest {
+        val slowStore = object : IPetStore by store {
+            override suspend fun updatePetList(list: List<PetInfo>) {
+                yield() // Force competing read-modify-write operations to overlap.
+                store.updatePetList(list)
+            }
+        }
+        val repository = PetRepository(slowStore)
+        val pet = repository.addPet(testPet())
+        val position = launch { repository.savePosition(pet.id, 120f, 360f, 1f) }
+        val scale = launch { repository.setScale(pet.id, 0.5f) }
+        position.join(); scale.join()
+        val saved = repository.getPet(pet.id)!!
+        assertEquals(120f, saved.positionX)
+        assertEquals(360f, saved.positionY)
+        assertEquals(0.5f, saved.scale)
+    }
+
 }
+

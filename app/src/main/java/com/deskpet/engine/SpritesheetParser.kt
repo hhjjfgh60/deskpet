@@ -8,6 +8,9 @@ import android.util.Log
 import com.deskpet.data.model.AnimationState
 import com.deskpet.data.model.CodexPetConfig
 import com.deskpet.data.model.PetAnimationState
+import com.deskpet.data.model.validateLayout
+import com.deskpet.data.model.durationMs
+import com.deskpet.data.model.atlasCell
 import kotlinx.serialization.json.Json
 
 class SpritesheetParser {
@@ -27,7 +30,7 @@ class SpritesheetParser {
     fun parse(petJsonPath: String): CodexPetConfig? {
         return try {
             val content = java.io.File(petJsonPath).readText()
-            json.decodeFromString<CodexPetConfig>(content)
+            json.decodeFromString<CodexPetConfig>(content).also { it.validateLayout() }
         } catch (e: Exception) { Log.w(TAG, "Failed to parse pet.json: $petJsonPath", e); null }
     }
 
@@ -82,7 +85,7 @@ class SpritesheetParser {
         // API 28+: BitmapRegionDecoder
         val decoder = getDecoder(spritesheetPath)
         if (decoder != null) {
-            val rect = calculateCellRect(stateConfig.row, col, decoder.width, decoder.height)
+            val rect = calculateCellRect(stateConfig.row, col, decoder.width, decoder.height, config.columns, config.rows)
             return try {
                 decoder.decodeRegion(rect, BitmapFactory.Options().apply {
                     inPreferredConfig = Bitmap.Config.ARGB_8888
@@ -92,7 +95,7 @@ class SpritesheetParser {
 
         // API 26-27 WebP 回退
         val full = getFullBitmap(spritesheetPath) ?: return null
-        val rect = calculateCellRect(stateConfig.row, col, full.width, full.height)
+        val rect = calculateCellRect(stateConfig.row, col, full.width, full.height, config.columns, config.rows)
         return try {
             Bitmap.createBitmap(full, rect.left, rect.top, rect.width(), rect.height())
         } catch (e: Exception) { Log.w(TAG, "Failed to createBitmap from full", e); null }
@@ -102,11 +105,13 @@ class SpritesheetParser {
         return getStateConfig(config, state).frames
     }
 
-    fun calculateCellRect(row: Int, col: Int, w: Int, h: Int): Rect {
-        val cw = w / SPRITESHEET_COLS
-        val ch = h / SPRITESHEET_ROWS
-        return Rect(col * cw, row * ch, (col + 1) * cw, (row + 1) * ch)
+    fun calculateCellRect(row: Int, col: Int, w: Int, h: Int, columns: Int = SPRITESHEET_COLS, rows: Int = SPRITESHEET_ROWS): Rect {
+        val cell = atlasCell(row, col, w, h, columns, rows)
+        return Rect(cell.left, cell.top, cell.left + cell.width, cell.top + cell.height)
     }
+
+    fun getFrameDurationMs(config: CodexPetConfig, state: PetAnimationState, frameIndex: Int): Long =
+        getStateConfig(config, state).durationMs(frameIndex, if (state == PetAnimationState.IDLE) 500L else 200L)
 
     fun release() {
         cachedDecoder?.recycle()
@@ -116,3 +121,4 @@ class SpritesheetParser {
         cachedPath = null
     }
 }
+

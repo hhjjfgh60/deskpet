@@ -1,0 +1,123 @@
+# 本地文件盘点（2026-10-23）
+
+保留当前快照；以下0字节图片是下载失败文件，不是可用素材。保存到 GitHub 时不上传这些空图片，不覆盖 fork 已有的完整原图。
+
+## 缺失图片
+
+- `app/src/main/assets/pets/feibi-2/spritesheet.webp`
+- `app/src/main/assets/pets/feixue/spritesheet.webp`
+- `app/src/main/assets/pets/furina/spritesheet.webp`
+- `app/src/main/assets/pets/gpt-dragon/spritesheet.png`
+- `app/src/main/assets/pets/hutao/spritesheet.webp`
+- `app/src/main/assets/pets/ikun/spritesheet.webp`
+- `app/src/main/assets/pets/jiyi/spritesheet.webp`
+- `test_pets/feibi-2/spritesheet.webp`
+- `test_pets/feixue/spritesheet.webp`
+- `test_pets/furina/spritesheet.webp`
+- `test_pets/hutao/spritesheet.webp`
+- `test_pets/ikun/spritesheet.webp`
+- `test_pets/jiyi/spritesheet.webp`
+
+## 已有文件（字节数）
+
+- `.github/workflows/test.yml` — 2093
+- `.gitignore` — 107
+- `LICENSE` — 1304
+- `README.md` — 19606
+- `app/build.gradle.kts` — 3680
+- `app/proguard-rules.pro` — 462
+- `app/src/androidTest/java/com/deskpet/ui/PetListScreenTest.kt` — 2755
+- `app/src/main/AndroidManifest.xml` — 1976
+- `app/src/main/assets/notices/DeskPet-LICENSE` — 1304
+- `app/src/main/assets/notices/gpt-dragon/ATTRIBUTION.md` — 1281
+- `app/src/main/assets/notices/gpt-dragon/FORMAT.md` — 3130
+- `app/src/main/assets/notices/gpt-dragon/LICENSE` — 1790
+- `app/src/main/assets/notices/gpt-dragon/RIGHTS.md` — 2256
+- `app/src/main/assets/notices/gpt-dragon/upstream-pet.json` — 5596
+- `app/src/main/assets/pets/feibi-2/pet.json` — 267
+- `app/src/main/assets/pets/feixue/pet.json` — 207
+- `app/src/main/assets/pets/furina/pet.json` — 199
+- `app/src/main/assets/pets/gpt-dragon/pet.json` — 1968
+- `app/src/main/assets/pets/hutao/pet.json` — 433
+- `app/src/main/assets/pets/ikun/pet.json` — 149
+- `app/src/main/assets/pets/jiyi/pet.json` — 236
+- `app/src/main/assets/pets/yi-bu/pet.json` — 166
+- `app/src/main/assets/pets/yi-bu/spritesheet.webp` — 860912
+- `app/src/main/java/com/deskpet/DeskPetApp.kt` — 242
+- `app/src/main/java/com/deskpet/MainActivity.kt` — 12546
+- `app/src/main/java/com/deskpet/data/FileManager.kt` — 11553
+- `app/src/main/java/com/deskpet/data/IPetStore.kt` — 374
+- `app/src/main/java/com/deskpet/data/PetRepository.kt` — 3481
+- `app/src/main/java/com/deskpet/data/PetStore.kt` — 2100
+- `app/src/main/java/com/deskpet/data/SamplePetLoader.kt` — 4050
+- `app/src/main/java/com/deskpet/data/model/CodexPetConfig.kt` — 1952
+- `app/src/main/java/com/deskpet/data/model/DragDirection.kt` — 88
+- `app/src/main/java/com/deskpet/data/model/ImportException.kt` — 493
+- `app/src/main/java/com/deskpet/data/model/PetAnimationState.kt` — 1158
+- `app/src/main/java/com/deskpet/data/model/PetInfo.kt` — 518
+- `app/src/main/java/com/deskpet/data/model/PetType.kt` — 128
+- `app/src/main/java/com/deskpet/engine/AnimationController.kt` — 3206
+- `app/src/main/java/com/deskpet/engine/AutonomousBehavior.kt` — 1288
+- `app/src/main/java/com/deskpet/engine/GifRenderer.kt` — 1722
+- `app/src/main/java/com/deskpet/engine/IAnimationStateController.kt` — 253
+- `app/src/main/java/com/deskpet/engine/PetEngine.kt` — 3847
+- `app/src/main/java/com/deskpet/engine/SpritesheetParser.kt` — 4958
+- `app/src/main/java/com/deskpet/overlay/GestureHandler.kt` — 2959
+- `app/src/main/java/com/deskpet/overlay/PetOverlayRenderer.kt` — 1214
+- `app/src/main/java/com/deskpet/overlay/PetOverlayService.kt` — 13250
+- `app/src/main/java/com/deskpet/ui/ImportScreen.kt` — 5814
+- `app/src/main/java/com/deskpet/ui/PetListScreen.kt` — 10576
+- `app/src/main/java/com/deskpet/ui/theme/Color.kt` — 275
+- `app/src/main/java/com/deskpet/ui/theme/Theme.kt` — 1180
+- `app/src/main/java/com/deskpet/ui/theme/Type.kt` — 878
+- `app/src/main/res/drawable/ic_launcher_foreground.xml` — 826
+- `app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml` — 269
+- `app/src/main/res/values/colors.xml` — 122
+- `app/src/main/res/values/strings.xml` — 76
+- `app/src/main/res/values/themes.xml` — 150
+- `app/src/main/res/xml/file_paths.xml` — 139
+- `app/src/test/java/com/deskpet/data/PetRepositoryTest.kt` — 5710
+- `app/src/test/java/com/deskpet/engine/AnimationControllerTest.kt` — 2995
+- `app/src/test/java/com/deskpet/engine/AutonomousBehaviorTest.kt` — 3162
+- `app/src/test/java/com/deskpet/engine/DragonAtlasTest.kt` — 2608
+- `app/src/test/java/com/deskpet/engine/GifRendererTest.kt` — 914
+- `app/src/test/java/com/deskpet/engine/SpritesheetParserTest.kt` — 2665
+- `app/src/test/java/com/deskpet/overlay/GestureHandlerTest.kt` — 1586
+- `build.gradle.kts` — 300
+- `doc/ANDROID_PHONE.md` — 7592
+- `doc/detailed-design.md` — 36455
+- `doc/gpt-dragon/ATTRIBUTION.md` — 1281
+- `doc/gpt-dragon/FORMAT.md` — 3130
+- `doc/gpt-dragon/LICENSE` — 1790
+- `doc/gpt-dragon/RIGHTS.md` — 2256
+- `doc/gpt-dragon/upstream-pet.json` — 5596
+- `doc/high-level-design.md` — 16311
+- `doc/proposal.md` — 9056
+- `doc/tasks/00-project-setup.md` — 1776
+- `doc/tasks/01-data-models.md` — 2090
+- `doc/tasks/02-foundation.md` — 983
+- `doc/tasks/03-data-layer.md` — 1571
+- `doc/tasks/04-spritesheet-parser.md` — 2279
+- `doc/tasks/05-gif-renderer.md` — 1188
+- `doc/tasks/06-pet-engine.md` — 1463
+- `doc/tasks/07-animation-controller.md` — 2029
+- `doc/tasks/08-autonomous-behavior.md` — 1313
+- `doc/tasks/09-overlay-layer.md` — 2373
+- `doc/tasks/10-ui-layer.md` — 2953
+- `doc/tasks/progress.md` — 4327
+- `gradle/wrapper/gradle-wrapper.jar` — 48462
+- `gradle/wrapper/gradle-wrapper.properties` — 281
+- `gradle.properties` — 431
+- `gradlew` — 8655
+- `gradlew.bat` — 2765
+- `scripts/prepare_assets.py` — 4749
+- `scripts/verify_assets.py` — 2809
+- `settings.gradle.kts` — 325
+- `test_pets/feibi-2/pet.json` — 267
+- `test_pets/feixue/pet.json` — 207
+- `test_pets/furina/pet.json` — 199
+- `test_pets/hutao/pet.json` — 433
+- `test_pets/ikun/pet.json` — 149
+- `test_pets/jiyi/pet.json` — 236
+- `test_pets/yi-bu/pet.json` — 166
+- `test_pets/yi-bu/spritesheet.webp` — 860912

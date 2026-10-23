@@ -1,3 +1,5 @@
+import java.security.MessageDigest
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -86,3 +88,22 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test:runner:1.5.2")
 }
+
+
+// Do not produce an APK named as a dragon build when the real atlas is absent.
+val verifyBundledDragon by tasks.registering {
+    val atlas = layout.projectDirectory.file("src/main/assets/pets/gpt-dragon/spritesheet.png")
+    inputs.file(atlas)
+    doLast {
+        val file = atlas.asFile
+        check(file.isFile && file.length() == 2602295L) {
+            "Dragon atlas missing/incomplete. Run python scripts/prepare_assets.py before building."
+        }
+        val actual = MessageDigest.getInstance("SHA-256")
+            .digest(file.readBytes()).joinToString("") { "%02x".format(it) }
+        check(actual == "58ff74425fa8d1e6cf1359532312d39d60735f9515c00df4633b75390485c843") {
+            "Dragon atlas checksum mismatch; see doc/gpt-dragon/RIGHTS.md and scripts/prepare_assets.py"
+        }
+    }
+}
+tasks.named("preBuild") { dependsOn(verifyBundledDragon) }

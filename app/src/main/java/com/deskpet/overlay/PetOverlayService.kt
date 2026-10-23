@@ -1,5 +1,6 @@
 package com.deskpet.overlay
 
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Intent
 import android.content.IntentFilter
@@ -29,6 +30,7 @@ import com.deskpet.data.model.PetAnimationState
 import com.deskpet.engine.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collect
 
 class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateRegistryOwner {
 
@@ -45,6 +47,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
     private var auto: AutonomousBehavior? = null
     private var petId: String? = null
     private var job: Job? = null
+    private var saveJob: Job? = null
     private var wx = 0f
     private var wy = 200f
     private var savedScale = 1f
@@ -63,7 +66,9 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         wx += dx
         wy += dy
         updatePosition()
-        if (anim.isCodexPet()) {
+        auto?.onUserTouch()
+        scheduleSave()
+        if (anim.isCodexPet() && anim.currentState.value != gesture.mapDirectionToState(d)) {
             anim.switchState(gesture.mapDirectionToState(d))
         }
     }
@@ -81,6 +86,18 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         val ns = (savedScale * zoom).coerceIn(0.3f, 5f)
         anim.setScale(ns)
         savedScale = ns
+        updatePosition()
+        scheduleSave()
+    }
+
+    private fun scheduleSave() {
+        val id = petId ?: return
+        val x = wx; val y = wy; val scale = savedScale
+        saveJob?.cancel()
+        saveJob = sc.launch {
+            delay(250)
+            repo.savePosition(id, x, y, scale)
+        }
     }
 
     override fun onCreate() {
@@ -96,11 +113,28 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
             isCodexPet = anim::isCodexPet,
             onScale = ::onScale
         )
-        registerReceiver(screenReceiver, IntentFilter().apply {
+        androidx.core.content.ContextCompat.registerReceiver(this, screenReceiver, IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_OFF)
             addAction(Intent.ACTION_SCREEN_ON)
-        })
+        }, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
         startForeground()
+        sc.launch {
+            repo.getActivePet().collect { pet ->
+                if (pet == null && cv != null) {
+                    stopSelf()
+                } else if (pet != null && cv != null) {
+                    if (pet.id != petId) {
+                        petId?.let { repo.savePosition(it, wx, wy, savedScale) }
+                        show(pet.id)
+                    } else if (pet.scale != savedScale) {
+                        saveJob?.cancel()
+                        savedScale = pet.scale.coerceIn(0.3f, 5f)
+                        anim.setScale(savedScale)
+                        updatePosition()
+                    }
+                }
+            }
+        }
     }
 
     private fun startForeground() {
@@ -111,9 +145,15 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                     CHANNEL_ID, "桌面宠物", android.app.NotificationManager.IMPORTANCE_LOW
                 ).apply { description = "宠物悬浮窗运行中" })
             }
+            val openApp = PendingIntent.getActivity(this, 0,
+                Intent(this, com.deskpet.MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            val stop = PendingIntent.getService(this, 1,
+                Intent(this, PetOverlayService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             val ntf = NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("桌面宠物")
-                .setContentText("正在运行")
+                .setContentText("桌宠运行中 · 点击返回设置")
+                .setContentIntent(openApp)
+                .addAction(android.R.drawable.ic_menu_close_clear_cancel, "关闭桌宠", stop)
                 .setSmallIcon(android.R.drawable.ic_menu_gallery)
                 .setOngoing(true)
                 .build()
@@ -125,10 +165,16 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         } catch (e: Exception) {
             Log.w(TAG, "startForeground failed", e)
             Toast.makeText(this@PetOverlayService, "前台服务失败: ${e.message}", Toast.LENGTH_LONG).show()
+            stopSelf()
         }
     }
 
     override fun onStartCommand(i: Intent?, f: Int, s: Int): Int {
+        super.onStartCommand(i, f, s)
+        if (i?.action == ACTION_STOP || !android.provider.Settings.canDrawOverlays(this)) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         i?.getStringExtra(EXTRA_PET_ID)?.let { id ->
             job?.cancel()
             job = sc.launch {
@@ -137,6 +183,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 } catch (e: Exception) {
                     Log.e(TAG, "show failed", e)
                     Toast.makeText(this@PetOverlayService, "启动失败: ${e.message}", Toast.LENGTH_LONG).show()
+                    stopSelf()
                 }
             }
         } ?: sc.launch {
@@ -151,17 +198,22 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         return START_STICKY
     }
 
-    override fun onDestroy() {
-        try {
-            kotlinx.coroutines.runBlocking {
-                kotlinx.coroutines.withTimeout(2000L) {
-                    petId?.let { id -> repo.savePosition(id, wx, wy, savedScale) }
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to save position on destroy", e)
+    private fun persistSnapshot() {
+        val id = petId ?: return
+        val repository = repo
+        val x = wx; val y = wy; val scale = savedScale
+        saveJob?.cancel()
+        (application as com.deskpet.DeskPetApp).persistenceScope.launch {
+            try { repository.savePosition(id, x, y, scale) }
+            catch (error: Exception) { Log.w(TAG, "Failed to save overlay snapshot", error) }
         }
+    }
+
+    override fun onDestroy() {
+        persistSnapshot()
+        running.value = false
         removeOverlayView()
+        viewModelStore.clear()
         if (::anim.isInitialized) anim.stop()
         auto?.stop()
         if (::parser.isInitialized) parser.release()
@@ -176,16 +228,8 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
 
     override fun onTaskRemoved(r: Intent?) {
         super.onTaskRemoved(r)
-        try {
-            kotlinx.coroutines.runBlocking {
-                kotlinx.coroutines.withTimeout(2000L) {
-                    petId?.let { id -> repo.savePosition(id, wx, wy, savedScale) }
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to save position on task removed", e)
-        }
-        stopSelf()
+        persistSnapshot()
+        // Keep the foreground overlay alive when the activity is swiped away.
     }
     override fun onConfigurationChanged(c: Configuration) {
         super.onConfigurationChanged(c)
@@ -200,11 +244,16 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
     }
 
     private suspend fun show(id: String) {
+        saveJob?.cancel()
         val info = withContext(Dispatchers.IO) { repo.getPet(id) } ?: return
         petId = id
         wx = info.positionX
         wy = info.positionY
-        if (!anim.reload(info)) return
+        if (!anim.reload(info)) {
+            Toast.makeText(this, "宠物素材无法读取，请检查素材文件", Toast.LENGTH_LONG).show()
+            stopSelf()
+            return
+        }
         anim.setScale(info.scale)
         savedScale = info.scale
         anim.start()
@@ -232,6 +281,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
             setViewTreeSavedStateRegistryOwner(this@PetOverlayService)
             setContent { PetOverlayRenderer(anim, gesture.modifier) }
         }
+        clampPosition()
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -250,8 +300,10 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         }
         try {
             wm.addView(cv, params)
+            running.value = true
         } catch (e: Exception) {
             Log.e(TAG, "addView", e)
+            stopSelf()
         }
     }
 
@@ -300,5 +352,9 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         }
     }
 
-    companion object { const val EXTRA_PET_ID = "pet_id"; private const val TAG = "PO"; private const val NOTIFY_ID = 1; private const val CHANNEL_ID = "deskpet_fg" }
+    companion object {
+        val running = kotlinx.coroutines.flow.MutableStateFlow(false)
+        private const val ACTION_STOP = "com.deskpet.STOP"
+        const val EXTRA_PET_ID = "pet_id"; private const val TAG = "PO"; private const val NOTIFY_ID = 1; private const val CHANNEL_ID = "deskpet_fg" }
 }
+

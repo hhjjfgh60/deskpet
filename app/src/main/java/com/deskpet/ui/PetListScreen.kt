@@ -218,14 +218,16 @@ private fun PetPreview(pet: PetInfo) {
 }
 
 private fun loadOrCreateThumb(pet: PetInfo): Bitmap? {
-    val cache = java.io.File(pet.spritesheetPath).parentFile?.resolve("thumb_hq.png") ?: return null
+    val cache = java.io.File(pet.spritesheetPath).parentFile?.resolve("thumb_atlas_v2.png") ?: return null
     if (cache.exists()) return BitmapFactory.decodeFile(cache.absolutePath)
-    java.io.File(pet.spritesheetPath).parentFile?.listFiles { f -> f.name.startsWith("thumb") && f.name != "thumb_hq.png" }?.forEach { it.delete() }
+    java.io.File(pet.spritesheetPath).parentFile?.listFiles { f -> f.name.startsWith("thumb") && f.name != "thumb_atlas_v2.png" }?.forEach { it.delete() }
     return try {
-        val full = BitmapFactory.decodeFile(pet.spritesheetPath) ?: return null
-        val cw = full.width / 8; val ch = full.height / 9
-        val t = if (cw > 0 && ch > 0) Bitmap.createBitmap(full, 0, 0, cw.coerceAtMost(full.width), ch.coerceAtMost(full.height)) else null
-        full.recycle()
+        val parser = com.deskpet.engine.SpritesheetParser()
+        val config = pet.petJsonPath?.let { parser.parse(it) } ?: return null
+        val t = try {
+            parser.extractFrame(config, pet.spritesheetPath, com.deskpet.data.model.PetAnimationState.IDLE, 0)
+        } finally { parser.release() }
         t?.let { java.io.FileOutputStream(cache).use { o -> it.compress(Bitmap.CompressFormat.PNG, 80, o) } }; t
     } catch (e: Exception) { Log.w("PetListScreen", "thumbnail failed", e); null }
 }
+

@@ -6,8 +6,11 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.util.UUID
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class PetRepository(private val petStore: IPetStore) {
+    private val mutationMutex = Mutex()
 
     fun getAllPets(): Flow<List<PetInfo>> = petStore.petListFlow
 
@@ -20,22 +23,22 @@ class PetRepository(private val petStore: IPetStore) {
         pets.find { it.id == activeId }
     }
 
-    suspend fun addPet(petInfo: PetInfo): PetInfo {
+    suspend fun addPet(petInfo: PetInfo): PetInfo = mutationMutex.withLock {
         val withId = petInfo.copy(id = UUID.randomUUID().toString())
         val currentList = petStore.petListFlow.first().toMutableList()
         currentList.add(withId)
         petStore.updatePetList(currentList)
-        return withId
+        withId
     }
 
     /** 直接添加宠物（保持原始 ID，不生成新 UUID）—— 用于恢复备份 */
-    suspend fun addPetDirect(petInfo: PetInfo) {
+    suspend fun addPetDirect(petInfo: PetInfo) = mutationMutex.withLock {
         val currentList = petStore.petListFlow.first().toMutableList()
         currentList.add(petInfo)
         petStore.updatePetList(currentList)
     }
 
-    suspend fun deletePet(petId: String) {
+    suspend fun deletePet(petId: String) = mutationMutex.withLock {
         val currentList = petStore.petListFlow.first().toMutableList()
         currentList.removeAll { it.id == petId }
         petStore.updatePetList(currentList)
@@ -47,14 +50,14 @@ class PetRepository(private val petStore: IPetStore) {
         }
     }
 
-    suspend fun setActivePet(petId: String) {
+    suspend fun setActivePet(petId: String) = mutationMutex.withLock {
         val currentList = petStore.petListFlow.first().toMutableList()
         val updatedList = currentList.map { it.copy(isActive = it.id == petId) }
         petStore.updatePetList(updatedList)
         petStore.setActivePetId(petId)
     }
 
-    suspend fun savePosition(petId: String, x: Float, y: Float, scale: Float) {
+    suspend fun savePosition(petId: String, x: Float, y: Float, scale: Float) = mutationMutex.withLock {
         val currentList = petStore.petListFlow.first().toMutableList()
         val index = currentList.indexOfFirst { it.id == petId }
         if (index >= 0) {
@@ -63,7 +66,7 @@ class PetRepository(private val petStore: IPetStore) {
         }
     }
 
-    suspend fun setScale(petId: String, scale: Float) {
+    suspend fun setScale(petId: String, scale: Float) = mutationMutex.withLock {
         val currentList = petStore.petListFlow.first().toMutableList()
         val index = currentList.indexOfFirst { it.id == petId }
         if (index >= 0) {
@@ -83,3 +86,4 @@ class PetRepository(private val petStore: IPetStore) {
         petStore.setFirstLaunchDone()
     }
 }
+

@@ -34,6 +34,10 @@ class PetEngine(
                     spritesheetParser.parse(it)
                 } ?: return null
 
+                val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                android.graphics.BitmapFactory.decodeFile(petInfo.spritesheetPath, bounds)
+                if (bounds.outWidth <= 0 || bounds.outHeight <= 0 ||
+                    bounds.outWidth % config.columns != 0 || bounds.outHeight % config.rows != 0) return null
                 PetLoader.CodexPet(config, petInfo.spritesheetPath)
             }
             PetType.GIF -> {
@@ -73,6 +77,12 @@ class PetEngine(
         }
     }
 
+    fun getFrameDurationMs(loader: PetLoader, state: PetAnimationState, frameIndex: Int): Long =
+        when (loader) {
+            is PetLoader.CodexPet -> spritesheetParser.getFrameDurationMs(loader.config, state, frameIndex)
+            is PetLoader.Gif -> 32L // GIF renderer owns frame timing.
+        }
+
     fun getPetSize(loader: PetLoader): Pair<Int, Int> {
         return when (loader) {
             is PetLoader.CodexPet -> {
@@ -84,11 +94,12 @@ class PetEngine(
                     inJustDecodeBounds = true
                 }
                 android.graphics.BitmapFactory.decodeFile(loader.spritesheetPath, options)
-                val w = options.outWidth / SPRITESHEET_COLS
-                val h = options.outHeight / SPRITESHEET_ROWS
+                val w = options.outWidth / loader.config.columns
+                val h = options.outHeight / loader.config.rows
                 if (w <= 0 || h <= 0) Pair(DEFAULT_PET_WIDTH, DEFAULT_PET_HEIGHT) else Pair(w, h)
             }
             is PetLoader.Gif -> Pair(gifRenderer.width, gifRenderer.height)
         }
     }
 }
+

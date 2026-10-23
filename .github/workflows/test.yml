@@ -37,8 +37,18 @@ jobs:
         run: python scripts/verify_assets.py
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-      - name: Install build SDK
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+        with:
+          # Command-line Tools 16.0; the action installs sdkmanager itself.
+          cmdline-tools-version: '12266719'
+          # Override the action default (tools platform-tools): legacy tools is obsolete.
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          accept-android-sdk-licenses: true
+      - name: Verify installed Android SDK
+        run: |
+          sdkmanager --version
+          adb version
+          test -f "$ANDROID_HOME/platforms/android-35/android.jar"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/apksigner"
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
       - name: Run unit tests and build debug-signed APK
